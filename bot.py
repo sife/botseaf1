@@ -10,7 +10,7 @@ from telegram.ext import Application, CommandHandler, CallbackContext
 # إعدادات البوت من المتغيرات البيئية (للاستخدام في Railway)
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-RAILWAY_URL = os.getenv("botseaf1.railway.internal")  # عنوان السيرفر في Railway
+RAILWAY_URL = os.getenv("RAILWAY_URL")  # تأكد من تعريف هذا المتغير في بيئة Railway
 PORT = int(os.getenv("PORT", 5000))  # المنفذ الذي يعمل عليه البوت
 
 TIMEZONE = pytz.timezone("Asia/Riyadh")
@@ -93,6 +93,19 @@ async def send_daily_summary(context: CallbackContext):
     await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
     logger.info("تم إرسال الملخص اليومي بنجاح!")
 
+async def check_events(context: CallbackContext):
+    """التحقق من الأحداث الجديدة ونشرها"""
+    logger.info("🔍 التحقق من الأحداث الاقتصادية...")
+    events = fetch_economic_events()
+
+    if not events:
+        logger.info("لا توجد أحداث جديدة.")
+        return
+
+    for event in events[:3]:  # الحد من عدد الإرساليات
+        message = f"⏰ {event['time']}\n📊 {event['name']}\n📈 التأثير: {event['impact']}\n"
+        await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+
 async def start(update: Update, context: CallbackContext):
     """معالجة أمر /start"""
     await update.message.reply_text("✅ بوت الأخبار الاقتصادية جاهز!")
@@ -105,40 +118,32 @@ async def main():
 
     app.add_handler(CommandHandler("start", start))
 
-    # جدولة إرسال الملخص اليومي عند منتصف الليل
-    job_queue = app.job_queue
-    job_queue.run_daily(send_daily_summary, time=datetime.strptime("00:00", "%H:%M").time())
-
-    # إعداد Webhook للاتصال مع Railway
-    webhook_url = f"{RAILWAY_URL}/{TOKEN}"
-    logger.info(f"إعداد Webhook على الرابط: {webhook_url}")
-
-    await app.bot.set_webhook(url=webhook_url)
-
-    # تشغيل التطبيق على Webhook بدلاً من Polling
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=webhook_url,
-    )
-async def main():
-    logger.info("بدء تشغيل البوت...")
-
-    # تهيئة التطبيق
-    app = Application.builder().token(TOKEN).build()
-
     # تهيئة JobQueue
     job_queue = app.job_queue
     if job_queue is None:
         raise ValueError("❌ خطأ: JobQueue لم يتم تهيئته بشكل صحيح!")
 
-    # جدولة المهام
+    # جدولة إرسال الملخص اليومي عند منتصف الليل
     job_queue.run_daily(send_daily_summary, time=datetime.strptime("00:00", "%H:%M").time())
+    
+    # جدولة فحص الأحداث كل دقيقة
     job_queue.run_repeating(check_events, interval=60, first=0)
 
-    # تشغيل البوت
-    await app.run_polling()
+    # إعداد Webhook للاتصال مع Railway
+    if RAILWAY_URL:
+        webhook_url = f"{RAILWAY_URL}/{TOKEN}"
+        logger.info(f"إعداد Webhook على الرابط: {webhook_url}")
+        await app.bot.set_webhook(url=webhook_url)
+
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=TOKEN,
+            webhook_url=webhook_url,
+        )
+    else:
+        logger.info("تشغيل البوت باستخدام polling...")
+        await app.run_polling()
 
 if __name__ == "__main__":
     import asyncio
