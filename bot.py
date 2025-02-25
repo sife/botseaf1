@@ -1,5 +1,5 @@
-from telegram.ext import Updater, CommandHandler, CallbackContext
 from telegram import Update
+from telegram.ext import Application, CommandHandler, CallbackContext
 import logging
 import pytz
 from datetime import datetime, timedelta
@@ -8,8 +8,8 @@ from bs4 import BeautifulSoup
 import os
 
 # إعدادات البوت
-TOKEN = "7712506538:AAHgFTEg7_fuhq0sTN2dwZ88UFV1iQ6ycQ4"
-CHANNEL_ID = "@testbotseaf"
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
 TIMEZONE = pytz.timezone("Asia/Riyadh")
 
 # إعداد التسجيل بشكل مفصل
@@ -217,31 +217,27 @@ def main():
     """الدالة الرئيسية لتشغيل البوت"""
     try:
         logger.info("بدء تشغيل البوت...")
-        updater = Updater(TOKEN, use_context=True)
-        dp = updater.dispatcher
+        application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+
+        dp = application.dispatcher
 
         # إضافة معالج الأمر start/
         dp.add_handler(CommandHandler("start", start))
-        logger.info("تم تسجيل معالج أمر /start")
 
         # جدولة وظيفة الملخص اليومي (عند منتصف الليل)
-        updater.job_queue.run_daily(
+        application.job_queue.run_daily(
             send_daily_summary,
             time=datetime.strptime("00:00", "%H:%M").time(),
             days=(0, 1, 2, 3, 4, 5, 6)
         )
-        logger.info("تم جدولة الملخص اليومي")
 
         # جدولة وظيفة التحقق من الأحداث (كل دقيقة)
-        updater.job_queue.run_repeating(check_events, interval=60)
-        logger.info("تم جدولة التحقق من الأحداث كل دقيقة")
+        application.job_queue.run_repeating(check_events, interval=60)
 
-        logger.info("✅ تم بدء تشغيل البوت بنجاح!")
-        updater.start_polling()
-        updater.idle()
-
-    except Exception as e:
-        logger.error(f"خطأ حرج في main: {str(e)}")
-
-if __name__ == "__main__":
-    main()
+        # استخدام Webhook بدلًا من polling على Railway
+        logger.info("تم بدء تشغيل البوت بنجاح!")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=int(os.environ.get('PORT', 5000)),
+            url_path=os.getenv("TELEGRAM_TOKEN"),
+            webhook_url=f"https://<YOUR_RAIL
