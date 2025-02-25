@@ -7,11 +7,11 @@ from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackContext
 
-# إعدادات البوت من المتغيرات البيئية (للاستخدام في Railway)
+# إعدادات البوت
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-RAILWAY_URL = os.getenv("RAILWAY_URL")  # تأكد من تعريف هذا المتغير في بيئة Railway
-PORT = int(os.getenv("PORT", 5000))  # المنفذ الذي يعمل عليه البوت
+RAILWAY_URL = os.getenv("RAILWAY_URL")
+PORT = int(os.getenv("PORT", 5000))
 
 TIMEZONE = pytz.timezone("Asia/Riyadh")
 
@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def fetch_economic_events():
-    """جلب الأحداث الاقتصادية الأمريكية ذات التأثير المتوسط والقوي"""
+    """جلب الأحداث الاقتصادية الأمريكية"""
     logger.info("بدء جلب الأحداث الاقتصادية...")
     url = "https://sa.investing.com/economic-calendar"
     headers = {
@@ -87,7 +87,7 @@ async def send_daily_summary(context: CallbackContext):
         return
 
     message = "📅 ملخص الأحداث الاقتصادية الأمريكية لليوم:\n\n"
-    for event in events[:5]:  # إرسال فقط أول 5 أحداث لتجنب طول الرسالة
+    for event in events[:5]:
         message += f"⏰ {event['time']}\n📊 {event['name']}\n📈 التأثير: {event['impact']}\n➖➖➖➖➖➖➖➖\n"
     
     await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
@@ -118,18 +118,13 @@ async def main():
 
     app.add_handler(CommandHandler("start", start))
 
-    # تهيئة JobQueue
     job_queue = app.job_queue
     if job_queue is None:
         raise ValueError("❌ خطأ: JobQueue لم يتم تهيئته بشكل صحيح!")
 
-    # جدولة إرسال الملخص اليومي عند منتصف الليل
     job_queue.run_daily(send_daily_summary, time=datetime.strptime("00:00", "%H:%M").time())
-    
-    # جدولة فحص الأحداث كل دقيقة
     job_queue.run_repeating(check_events, interval=60, first=0)
 
-    # إعداد Webhook للاتصال مع Railway
     if RAILWAY_URL:
         webhook_url = f"{RAILWAY_URL}/{TOKEN}"
         logger.info(f"إعداد Webhook على الرابط: {webhook_url}")
@@ -145,6 +140,12 @@ async def main():
         logger.info("تشغيل البوت باستخدام polling...")
         await app.run_polling()
 
+# ✅ إصلاح مشكلة event loop
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(main())
+    except RuntimeError:
+        asyncio.run(main())
