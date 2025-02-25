@@ -122,6 +122,23 @@ async def main():
         url_path=TOKEN,
         webhook_url=webhook_url,
     )
+async def main():
+    logger.info("بدء تشغيل البوت...")
+
+    # تهيئة التطبيق
+    app = Application.builder().token(TOKEN).build()
+
+    # تهيئة JobQueue
+    job_queue = app.job_queue
+    if job_queue is None:
+        raise ValueError("❌ خطأ: JobQueue لم يتم تهيئته بشكل صحيح!")
+
+    # جدولة المهام
+    job_queue.run_daily(send_daily_summary, time=datetime.strptime("00:00", "%H:%M").time())
+    job_queue.run_repeating(check_events, interval=60, first=0)
+
+    # تشغيل البوت
+    await app.run_polling()
 
 if __name__ == "__main__":
     import asyncio
