@@ -10,7 +10,7 @@ from telegram.ext import Application, CommandHandler, CallbackContext
 # إعدادات البوت من المتغيرات البيئية (للاستخدام في Railway)
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-RAILWAY_URL = os.getenv("RAILWAY_URL")  # عنوان السيرفر في Railway
+RAILWAY_URL = os.getenv("botseaf1.railway.internal")  # عنوان السيرفر في Railway
 PORT = int(os.getenv("PORT", 5000))  # المنفذ الذي يعمل عليه البوت
 
 TIMEZONE = pytz.timezone("Asia/Riyadh")
